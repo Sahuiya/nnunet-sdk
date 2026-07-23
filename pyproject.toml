@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=67.8.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nnunet-sdk"
+version = "0.1.0"
+description = "YOLO-style orchestration layer for nnU-Net segmentation workflows"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "typer>=0.12.0",
+    "PyYAML>=6.0",
+    "rich>=13.0",
+]
+
+[project.optional-dependencies]
+adapters = [
+    "nibabel>=5.0",
+    "numpy>=1.24",
+    "scipy>=1.10",
+]
+dev = [
+    "pytest>=7.0",
+]
+
+[project.scripts]
+seg = "segkit.cli:app"
+
+[tool.setuptools.packages.find]
+include = ["segkit*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

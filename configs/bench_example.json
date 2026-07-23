@@ -1,0 +1,10 @@
+{
+  "cases": [
+    {
+      "name": "example_case",
+      "pred": "path/to/pred.nii.gz",
+      "gt": "path/to/gt.nii.gz",
+      "max_dice_drop": 0.05
+    }
+  ]
+}

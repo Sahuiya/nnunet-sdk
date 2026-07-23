@@ -1,0 +1,93 @@
+project:
+  name: SPINE
+  seed: 42
+
+paths:
+  # Relative paths resolve against this config file's directory.
+  root: /home/ZHSun/szh_space/dataset/nnunet_data
+  raw: /home/ZHSun/szh_space/dataset/nnunet_data/nnUNet_raw
+  preprocessed: /home/ZHSun/szh_space/dataset/nnunet_data/nnUNet_preprocessed
+  results: /home/ZHSun/szh_space/dataset/nnunet_data/nnUNet_results
+  runs: /home/ZHSun/szh_space/dataset/nnunet_data/runs
+
+dataset:
+  id: 101
+  name: SPINE
+  file_ending: .nii.gz
+  channel_names:
+    0: CT
+  # 与 Dataset101_SPINE/dataset.json 一致（ribseg 标签 0..24）
+  labels:
+    background: 0
+    rib_1: 1
+    rib_2: 2
+    rib_3: 3
+    rib_4: 4
+    rib_5: 5
+    rib_6: 6
+    rib_7: 7
+    rib_8: 8
+    rib_9: 9
+    rib_10: 10
+    rib_11: 11
+    rib_12: 12
+    rib_13: 13
+    rib_14: 14
+    rib_15: 15
+    rib_16: 16
+    rib_17: 17
+    rib_18: 18
+    rib_19: 19
+    rib_20: 20
+    rib_21: 21
+    rib_22: 22
+    rib_23: 23
+    rib_24: 24
+  source:
+    adapter: nifti_folder
+    images: /home/ZHSun/share/dataset/rib/ribfrac-train-images-1/Part1
+    labels: /home/ZHSun/share/dataset/rib/ribseg
+
+train:
+  configuration: 3d_fullres # 2d,3d_fullres,3d_lowres,3d_cascade_fullres
+  # 修改 epoch：改 trainer 为 nnUNetTrainer_<N>epochs；N 仅支持 1/5/10/20/50/100/250/2000/4000/8000（默认名 nnUNetTrainer=1000）
+  trainer: nnUNetTrainer_5epochs
+  plans: nnUNetPlans
+  fold: 0
+  device: cuda
+
+predict:
+  input: null
+  output: null
+  # null 时自动用 {results}/Dataset{id}_{name}/{trainer}__{plans}__{configuration}
+  model_folder: null
+  checkpoint: checkpoint_best.pth
+  fold: 0
+  tta: true
+  save_probabilities: false
+  device: cuda
+  backend: pytorch
+  # 推理后原地后处理：null | identity | generic_largest_cc | generic_min_size
+  # 也可 CLI: seg predict ... --postprocess generic_largest_cc
+  postprocess: null
+
+eval:
+  gt_folder: null
+  pred_folder: null
+  labels: null
+  chill: true
+
+plan:
+  verify_dataset_integrity: false
+  no_pp: false
+  configurations: null
+
+postprocess:
+  enabled: false
+  name: identity
+  params: {}
+
+bundle:
+  include_onnx: false
+
+# export 默认 opset_version=18（见 segkit 默认配置）；可用 CLI/SDK 覆盖
