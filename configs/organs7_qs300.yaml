@@ -1,0 +1,111 @@
+# Organs-7 on TotalSegmentator qs300 split (aligned with SuPreM finetune.sh).
+# Labels / lists match:
+#   SuPreM-main/target_applications/totalsegmentator  map_type=organs_7
+#   dataset_list_qs300/{train_250,val,test}.txt
+#
+# Pipeline:
+#   1) pip install -e ".[adapters]"   # nibabel
+#   2) seg prepare --config configs/organs7_qs300.yaml
+#      → writes Dataset102_ORGANS7 under paths.raw, including splits_final.json
+#   3) seg doctor --config configs/organs7_qs300.yaml
+#   4) seg plan  --config configs/organs7_qs300.yaml
+#      → copies raw splits_final.json into paths.preprocessed/Dataset102_ORGANS7/
+#   5) seg train --config configs/organs7_qs300.yaml --fold 0
+#      → fold 0 = train_250 / val (not nnU-Net random 5-fold)
+#   6) seg predict ...  (test cases are in imagesTs after prepare)
+#   7) seg eval --gt <labelsTs> --pred <preds>
+#
+# Fixed split wiring (nnU-Net convention):
+#   - train_250 + val 都进 imagesTr/labelsTr（val 不是单独目录）
+#   - prepare 写 splits_final.json: [{"train":[...250],"val":[...50]}]
+#   - plan 拷到 preprocessed；seg train --fold 0 用 val 列表做验证集
+#   - test 进 imagesTs/labelsTs，不参与训练
+
+project:
+  name: ORGANS7_QS300
+  seed: 42
+
+paths:
+  root: /home/ZHSun/szh_space/dataset/nnunet_data
+  raw: /home/ZHSun/szh_space/dataset/nnunet_data/nnUNet_raw
+  preprocessed: /home/ZHSun/szh_space/dataset/nnunet_data/nnUNet_preprocessed
+  results: /home/ZHSun/szh_space/dataset/nnunet_data/nnUNet_results
+  runs: /home/ZHSun/szh_space/dataset/nnunet_data/runs
+
+dataset:
+  id: 102
+  name: ORGANS7_QS300
+  file_ending: .nii.gz
+  channel_names:
+    0: CT
+  labels:
+    background: 0
+  source:
+    adapter: totalsegmentator_folder
+    # 选要分割的部位（三选一，优先 parts / parts_preset；prepare 时用）：
+    #   parts_preset: organs_7 | gallbladder | liver | ribs | vertebrae | bones_girdle | bones_all
+    #   parts: [liver, gallbladder, ...]          # 自定义列表
+    #   或只靠上面的 dataset.labels 写全前景类     # 旧写法
+    # CLI 等价：seg prepare -c ... --parts-preset organs_7
+    parts_preset: organs_7
+    dataset_path: /home/ZHSun/szh_space/dataset/totalsegmentator
+    ct_name: ct.nii.gz
+    segmentations_subdir: segmentations
+    # TotalSeg 部分 CT affine 非严格正交，SimpleITK 会报错；prepare 默认写 NibabelIOWithReorient
+    # overwrite_image_reader_writer: NibabelIOWithReorient
+    train_list: /home/ZHSun/szh_space/workspace/SuPreM-main/target_applications/totalsegmentator/dataset/dataset_list_qs300/train_250.txt
+    val_list: /home/ZHSun/szh_space/workspace/SuPreM-main/target_applications/totalsegmentator/dataset/dataset_list_qs300/val.txt
+
+plan:
+  verify_dataset_integrity: true
+  no_pp: false
+  configurations: null
+  # 显存预算（GB）。设了以后 plan 会写出新的 plans 文件名（默认 nnUNetPlans_{N}G），
+  # 下面 train.plans 必须写成同一个名字，训练才会用到这份 plan。
+  # gpu_memory_target: 20
+  # overwrite_plans_name: nnUNetPlans_40G  # 可不写；不写则自动为 nnUNetPlans_40G
+
+train:
+  configuration: 3d_fullres
+  plans: nnUNetPlans  # 与 plan 生成的名字一致（gpu_memory_target: 40 → nnUNetPlans_40G）
+  fold: 0
+  device: cuda
+  # 训练行为有两种写法（二选一即可）：
+  #   A) 像下面这样直接写 num_epochs / loss / oversample_fg / mirroring（推荐，可组合）
+  #   B) 不写上面几项，改用官方/仓库预设 trainer，例如：
+  #      trainer: nnUNetTrainer_250epochs
+  #      trainer: nnUNetTrainerNoMirroring
+  #      trainer: nnUNetTrainerDiceLoss
+  #   若 A 与 B 同时写了，以 A 为准
+  num_epochs: 250
+  loss: dice               # 小目标易被 CE 推向全背景时用 dice；大器官可用 dice_ce
+  oversample_fg: 1.0       # 小目标可提到 1.0；默认约 0.33
+  mirroring: false         # false：标签含左右对称/成对结构（左/右肾、左/右肺叶等）时关闭，避免翻转后 L/R 标签冲突；无左右区分时可 true
+
+
+predict:
+  input: null
+  output: null
+  model_folder: null
+  checkpoint: checkpoint_best.pth
+  fold: 0
+  tta: true
+  save_probabilities: false
+  device: cuda
+  backend: pytorch                   # pytorch | onnx；onnx 时需填 onnx_folder
+  # onnx_folder: /path/to/exported_onnx
+  postprocess: null
+
+eval:
+  gt_folder: null
+  pred_folder: null
+  labels: null
+  chill: true
+
+postprocess:
+  enabled: false
+  name: identity
+  params: {}
+
+bundle:
+  include_onnx: false

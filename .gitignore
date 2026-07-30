@@ -14,3 +14,5 @@ venv/
 *.pt
 *.pth
 .DS_Store
+
+.git.bak-corrupted-*/
