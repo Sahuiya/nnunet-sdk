@@ -18,10 +18,7 @@
 先根据 [PyTorch 官网](https://pytorch.org/get-started/locally/) 为自己的 CUDA 环境安装 PyTorch。然后在仓库根目录安装本项目：
 
 ```bash
-# 安装本地 nnU-Net
-pip install -e ./nnUNet
-
-# 安装 segkit
+# 一次安装：定制 nnunetv2（nnUNet/）+ segkit（seg CLI）
 pip install -e .
 
 # 如需读取、合并 NIfTI 标签（绝大多数 prepare 场景需要）
@@ -31,15 +28,18 @@ pip install -e ".[adapters]"
 pip install -e ".[dev]"
 ```
 
+不必再执行 `pip install -e ./nnUNet`：根目录的 `pip install -e .` 已收录本仓库定制版 `nnunetv2`。同一环境请勿再安装 PyPI 的官方 `nnunetv2`，也不要把其它 nnU-Net 源码路径加入 `PYTHONPATH`，以免串包。建议使用独立虚拟环境。
+
 检查安装：
 
 ```bash
 seg --version
 seg --help
 which nnUNetv2_train
+python -c "import nnunetv2; print(nnunetv2.__file__)"
 ```
 
-最后一条应输出 `nnUNetv2_train` 的路径。若没有输出，通常是本地 `nnUNet` 未正确安装或当前 Python 环境不对。
+`which nnUNetv2_train` 应输出当前环境中的路径；`nnunetv2.__file__` 应指向本仓库的 `nnUNet/nnunetv2/`（editable）。若没有输出或路径不对，通常是未按上述命令安装，或当前 Python 环境不对。
 
 
 ## 2. 写任务配置
@@ -249,7 +249,49 @@ seg prepare -c configs/my_task.yaml
 
 **方式 D：TotalSegmentator 病例目录**
 
-每个病例包含 `ct.nii.gz` 和 `segmentations/` 下的多个器官二值 mask 时使用：
+使用官方/本地 TotalSegmentator 风格数据时，需要同时提供：
+
+1. **病例根目录**（`dataset_path`）：每个病例一个子目录  
+2. **划分列表 txt**（`train_list` / `val_list` 必填；`test_list` 可选）
+
+病例目录布局：
+
+```text
+{dataset_path}/
+  s0001/
+    ct.nii.gz
+    segmentations/
+      liver.nii.gz
+      gallbladder.nii.gz
+      ...
+  s0002/
+    ct.nii.gz
+    segmentations/
+      ...
+```
+
+划分 txt 格式（仓库内示例：[`configs/examples/train.txt`](configs/examples/train.txt)、[`configs/examples/val.txt`](configs/examples/val.txt)）：
+
+- 每行一个 **case ID**（与 `dataset_path` 下子目录名一致）
+- 取该行第一个空白分隔字段；空行与 `#` 开头行为注释
+- `train_list` 与 `val_list` **不能重叠**
+- prepare 会把 train+val 都写入 `imagesTr`/`labelsTr`，并生成 `splits_final.json`；之后 `seg train --fold 0` 用 `val_list` 做验证集
+- `test_list`（可选）写入 `imagesTs`/`labelsTs`，不参与训练
+
+```text
+# configs/examples/train.txt
+s0001
+s0002
+s0003
+```
+
+```text
+# configs/examples/val.txt
+s0100
+s0101
+```
+
+YAML 示例（把路径改成你的实际位置；可直接参考示例 txt 改写）：
 
 ```yaml
 dataset:
@@ -263,9 +305,9 @@ dataset:
     dataset_path: /data/totalsegmentator
     ct_name: ct.nii.gz
     segmentations_subdir: segmentations
-    # train_list: /data/splits/train.txt
-    # val_list: /data/splits/val.txt
-    # test_list: /data/splits/test.txt
+    train_list: configs/examples/train.txt   # 必填
+    val_list: configs/examples/val.txt       # 必填
+    # test_list: configs/examples/test.txt   # 可选
 ```
 
 执行：
@@ -612,7 +654,6 @@ pytest tests/ -q
 确认正在使用安装项目时的 Python/conda 环境，然后重新执行：
 
 ```bash
-pip install -e ./nnUNet
 pip install -e .
 ```
 
