@@ -4,9 +4,7 @@
 
 适用场景：医学图像分割（CT、MR 等），输入与标签为 NIfTI 文件（通常是 `.nii.gz`）。底层训练仍然是 nnU-Net，`seg` 不会改变其模型和训练核心。
 
-
 ## 1. 安装
-
 
 ### 1.1 前置条件
 
@@ -41,11 +39,9 @@ python -c "import nnunetv2; print(nnunetv2.__file__)"
 
 `which nnUNetv2_train` 应输出当前环境中的路径；`nnunetv2.__file__` 应指向本仓库的 `nnUNet/nnunetv2/`（editable）。若没有输出或路径不对，通常是未按上述命令安装，或当前 Python 环境不对。
 
-
 ## 2. 写任务配置
 
 每个分割任务使用一个 YAML 文件。它记录数据位置、类别定义、训练方式与推理默认值。YAML 中的相对路径以“该 YAML 文件所在目录”为基准；实际项目建议对 `paths` 使用绝对路径。
-
 
 ### 2.1 初始化命令
 
@@ -60,7 +56,6 @@ seg init --out configs/my_task.yaml --name MyOrgans --id 101
 - `--id`：数据集编号。它在同一个 `paths.raw` 下必须唯一。
 
 生成后，打开 `configs/my_task.yaml`，将路径、类别和数据来源替换为自己的内容。已有 TotalSegmentator 数据可参考 [configs/organs7_qs300.yaml](configs/organs7_qs300.yaml)。
-
 
 ### 2.2 完整配置文件说明
 
@@ -113,6 +108,8 @@ train:
   # loss: dice_ce                 # dice_ce | dice | dice_heavy_ce
   # oversample_fg: 0.33           # 前景 patch 比例；小目标可提高到 1.0
   # mirroring: true               # true | false | only_01
+  # initial_lr: 0.001             # 可选；微调时常降到 1e-3（默认约 1e-2）
+  # pretrained_weights: /path/to/checkpoint_best.pth  # 热启动权重；勿与 continue_training 同时开
 
 predict:
   input: null                     # 可由命令行 -i 覆盖
@@ -142,6 +139,7 @@ bundle:
 ```
 
 
+
 ### 2.3 至少要填哪些内容
 
 开始前，至少确认以下内容正确：
@@ -154,11 +152,9 @@ bundle:
 
 不需要手动设置 `nnUNet_raw`、`nnUNet_preprocessed`、`nnUNet_results` 环境变量；`seg` 会在执行 plan、train 和 predict 时根据 YAML 注入。
 
-
 ## 3. 数据准备
 
 这一节只处理数据。完成并通过 `seg doctor` 之前，不要开始 `seg plan` 或 `seg train`。
-
 
 ### 3.1 nnU-Net 最终需要的数据布局
 
@@ -182,6 +178,7 @@ bundle:
 - 标签文件名没有通道号：`{病例ID}.nii.gz`。
 - 图像和标签必须具有相同的空间尺寸、spacing 和方向。
 - 标签应为整型，背景为 0，前景编号连续。
+
 
 
 ### 3.2 选择数据导入方式
@@ -251,7 +248,7 @@ seg prepare -c configs/my_task.yaml
 
 使用官方/本地 TotalSegmentator 风格数据时，需要同时提供：
 
-1. **病例根目录**（`dataset_path`）：每个病例一个子目录  
+1. **病例根目录**（`dataset_path`）：每个病例一个子目录
 2. **划分列表 txt**（`train_list` / `val_list` 必填；`test_list` 可选）
 
 病例目录布局：
@@ -270,7 +267,7 @@ seg prepare -c configs/my_task.yaml
       ...
 ```
 
-划分 txt 格式（仓库内示例：[`configs/examples/train.txt`](configs/examples/train.txt)、[`configs/examples/val.txt`](configs/examples/val.txt)）：
+划分 txt 格式（仓库内示例：`[configs/examples/train.txt](configs/examples/train.txt)`、`[configs/examples/val.txt](configs/examples/val.txt)`）：
 
 - 每行一个 **case ID**（与 `dataset_path` 下子目录名一致）
 - 取该行第一个空白分隔字段；空行与 `#` 开头行为注释
@@ -324,6 +321,7 @@ seg prepare -c configs/my_task.yaml --parts-preset organs_7
 ```
 
 
+
 ### 3.3 检查数据
 
 无论使用哪种方式，都运行：
@@ -334,11 +332,9 @@ seg doctor -c configs/my_task.yaml
 
 它会检查依赖、路径权限、nnU-Net 命令是否可用，以及已有数据集的图像/标签配对。若 doctor 或后续 plan 报 `Could not find a dataset with the ID ...`，优先检查 `paths.raw` 中是否存在与 YAML 完全同名的 `Dataset{ID:03d}_{name}` 目录。
 
-
 ## 4. 训练与推理
 
 本节是完整命令一览和推荐执行顺序。所有命令均可通过 `seg <命令> --help` 查看完整参数。会调用 nnU-Net 的命令支持 `--dry-run`，可先检查即将执行的操作而不真正运行。
-
 
 ### 4.1 命令一览
 
@@ -382,6 +378,7 @@ seg bench --spec configs/bench_example.json --out runs/bench/report.json
 ```
 
 
+
 ### 4.2 执行训练
 
 数据检查通过后，依次运行：
@@ -417,6 +414,7 @@ seg train -c configs/my_task.yaml --fold 0 --configuration 3d_fullres
 ```
 
 
+
 ### 4.3 训练参数建议
 
 默认 nnU-Net 配置已经适合大多数任务。需要控制训练预算或小目标行为时，在 `train:` 下添加：
@@ -430,12 +428,16 @@ train:
   loss: dice
   oversample_fg: 1.0
   mirroring: false
+  # initial_lr: 0.001
+  # pretrained_weights: /path/to/source_model/fold_0/checkpoint_best.pth
 ```
 
 - `num_epochs`：训练轮数。默认 nnU-Net 为 1000。
 - `loss`：`dice_ce` 是默认 Dice + Cross Entropy；极小目标出现全背景预测时可尝试 `dice`；`dice_heavy_ce` 是两者折中。
 - `oversample_fg`：前景 patch 抽样比例，默认约 0.33；小器官可设为 `1.0`。
 - `mirroring`：左右有不同类别（例如左肾、右肾）时设为 `false`，防止左右翻转造成标签语义冲突；`only_01` 是保留部分轴翻转的折中选择。
+- `initial_lr`：可选；写入后同样走 `nnUNetTrainerSegkit`。微调时常降到 `1e-3`；不写则用 nnU-Net 默认（约 `1e-2`）。
+- `pretrained_weights`：可选；指向已有模型的 `.pth`（常用 `checkpoint_best.pth`），训练开始时热加载网络权重。与 `continue_training: true` **不要同时使用**（后者是断点续训同一 run）。架构/通道须与当前 `plans` 兼容，否则加载会失败。
 
 若提高 `plan.gpu_memory_target`，需重新执行 `seg plan`，并把 `train.plans` 改为生成的名称，例如：
 
@@ -445,6 +447,7 @@ plan:
 train:
   plans: nnUNetPlans_24G
 ```
+
 
 
 ### 4.4 推理
@@ -490,7 +493,6 @@ seg predict -c configs/my_task.yaml \
 ```
 
 支持的通用后处理插件为 `identity`、`generic_largest_cc` 和 `generic_min_size`。后处理也可按本节 4.1 的 `seg postprocess` 命令在推理完成后单独运行。
-
 
 ### 4.4.1 ONNX 推理流程
 
@@ -551,6 +553,7 @@ nnUNetv2_predict_from_onnx_modelfolder \
 ```
 
 
+
 ### 4.5 评估
 
 拥有测试集真值时：
@@ -564,7 +567,6 @@ seg eval -c configs/my_task.yaml \
 若推理使用了逐例后处理，请把 `--pred` 指向 `/data/predictions/postprocessed`；评估原始模型输出则指向 `/data/predictions/raw`。
 
 每次 `seg plan`、`seg train`、`seg predict`、`seg eval` 等运行都会在 `paths.runs/<命令>/expN/` 写入配置快照 `args.yaml` 和执行摘要 `summary.json`。
-
 
 ## 5. 模型打包与导出
 
@@ -592,7 +594,6 @@ seg export -c configs/my_task.yaml -o /data/exported_model
 ```
 
 也可用 `-w` 导出指定模型目录。成功后，输出目录中包含 `model.pt` 和/或 `model.onnx`（取决于 nnU-Net 导出环境和模型）。
-
 
 ## 6. Python SDK
 
@@ -627,6 +628,7 @@ model.predict(source="/data/new_images", predict={"output": "/data/predictions"}
 ```
 
 
+
 ## 7. 回归 bench
 
 用于持续验证固定病例上的 Dice 指标。先编写 JSON 规格，格式参考 [configs/bench_example.json](configs/bench_example.json)，再执行：
@@ -634,6 +636,7 @@ model.predict(source="/data/new_images", predict={"output": "/data/predictions"}
 ```bash
 seg bench --spec configs/bench_example.json --out runs/bench/report.json
 ```
+
 
 
 ## 8. 测试
@@ -646,10 +649,9 @@ pytest tests/ -q
 
 这些测试不要求 GPU，覆盖配置处理、命令构造、数据 adapter、模型打包和后处理等基础行为。
 
-
 ## 9. 常见问题
 
-**`seg doctor` 提示找不到 nnU-Net 或 `nnUNetv2_train`**
+`seg doctor` **提示找不到 nnU-Net 或** `nnUNetv2_train`
 
 确认正在使用安装项目时的 Python/conda 环境，然后重新执行：
 
@@ -657,7 +659,7 @@ pytest tests/ -q
 pip install -e .
 ```
 
-**`Could not find a dataset with the ID 101`**
+`Could not find a dataset with the ID 101`
 
 检查 `{paths.raw}/Dataset101_{dataset.name}` 是否存在，特别注意 ID 需要三位补零、任务名大小写以及 YAML 的 `paths.raw`。
 
