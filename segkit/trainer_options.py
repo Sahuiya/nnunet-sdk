@@ -1,8 +1,9 @@
 """YAML-driven nnU-Net trainer options for segkit.
 
 When ``train`` contains any of ``num_epochs`` / ``loss`` / ``oversample_fg`` /
-``mirroring``, training uses ``nnUNetTrainerSegkit`` and injects options via
-environment variables so the nnU-Net subprocess can apply them.
+``mirroring`` / ``initial_lr``, training uses ``nnUNetTrainerSegkit`` and
+injects options via environment variables so the nnU-Net subprocess can apply
+them.
 """
 
 from __future__ import annotations
@@ -11,7 +12,7 @@ import json
 import os
 from typing import Any, Mapping, MutableMapping, Optional
 
-OPTION_KEYS = ("num_epochs", "loss", "oversample_fg", "mirroring")
+OPTION_KEYS = ("num_epochs", "loss", "oversample_fg", "mirroring", "initial_lr")
 ENV_CONFIG = "SEGKIT_TRAINER_CONFIG"
 ENV_FOLDER_NAME = "SEGKIT_TRAINER_FOLDER_NAME"
 SEGKIT_TRAINER_CLASS = "nnUNetTrainerSegkit"
@@ -78,7 +79,17 @@ def normalize_trainer_options(train: Mapping[str, Any] | None) -> dict[str, Any]
         opts["oversample_fg"] = fg
     if train.get("mirroring") is not None:
         opts["mirroring"] = _parse_mirroring(train["mirroring"])
+    if train.get("initial_lr") is not None:
+        lr = float(train["initial_lr"])
+        if not (lr > 0.0):
+            raise ValueError("train.initial_lr must be > 0")
+        opts["initial_lr"] = lr
     return opts
+
+
+def _lr_folder_tag(lr: float) -> str:
+    """Filesystem-safe tag, e.g. 0.001 -> lr0p001, 1e-4 -> lr0p0001."""
+    return "lr" + f"{lr:g}".replace("-", "m").replace(".", "p")
 
 
 def trainer_folder_tag(opts: Mapping[str, Any]) -> str:
@@ -93,6 +104,8 @@ def trainer_folder_tag(opts: Mapping[str, Any]) -> str:
         parts.append(f"fg{int(round(float(opts['oversample_fg']) * 100))}")
     if "mirroring" in opts:
         parts.append({"default": "m1", "off": "m0", "only_01": "m01"}[opts["mirroring"]])
+    if "initial_lr" in opts:
+        parts.append(_lr_folder_tag(float(opts["initial_lr"])))
     return "_".join(parts) if parts else "default"
 
 

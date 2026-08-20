@@ -70,6 +70,13 @@ def test_train_argv():
     assert argv[argv.index("-p") + 1] == "nnUNetPlans"
 
 
+def test_train_argv_pretrained_weights():
+    cfg = _base_cfg()
+    cfg["train"]["pretrained_weights"] = "/data/ckpt/checkpoint_best.pth"
+    argv = build_train_argv(cfg)
+    assert argv[argv.index("-pretrained_weights") + 1] == "/data/ckpt/checkpoint_best.pth"
+
+
 def test_predict_from_modelfolder_argv_matches_eval_sh():
     # Aligns with eval.sh:
     # nnUNetv2_predict_from_modelfolder -i ... -o ... -m ... -f 0 -chk checkpoint_best.pth

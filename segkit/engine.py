@@ -123,6 +123,9 @@ def build_train_argv(cfg: Mapping[str, Any]) -> list[str]:
         argv.append("--c")
     if train.get("npz"):
         argv.append("--npz")
+    pretrained = train.get("pretrained_weights")
+    if pretrained:
+        argv.extend(["-pretrained_weights", str(pretrained)])
     return argv
 
 

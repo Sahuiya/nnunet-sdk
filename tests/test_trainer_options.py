@@ -60,3 +60,23 @@ def test_mirroring_only_01_and_loss_aliases():
 def test_invalid_loss_raises():
     with pytest.raises(ValueError, match="Unsupported train.loss"):
         normalize_trainer_options({"loss": "focal"})
+
+
+def test_initial_lr_option_and_folder_tag():
+    train = {
+        "num_epochs": 50,
+        "loss": "dice",
+        "oversample_fg": 0.5,
+        "mirroring": False,
+        "initial_lr": 0.001,
+    }
+    opts = normalize_trainer_options(train)
+    assert opts["initial_lr"] == 0.001
+    assert "lr0p001" in trainer_folder_name(opts)
+
+
+def test_invalid_initial_lr_raises():
+    with pytest.raises(ValueError, match="train.initial_lr"):
+        normalize_trainer_options({"initial_lr": 0})
+    with pytest.raises(ValueError, match="train.initial_lr"):
+        normalize_trainer_options({"initial_lr": -1e-3})

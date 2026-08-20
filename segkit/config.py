@@ -37,6 +37,10 @@ DEFAULTS: dict[str, Any] = {
         "device": "cuda",
         "continue_training": False,
         "npz": False,
+        # Path to a .pth (e.g. checkpoint_best.pth) for warm-start; not with continue_training
+        "pretrained_weights": None,
+        # null = nnU-Net default (1e-2); set lower for fine-tuning (e.g. 1e-3)
+        "initial_lr": None,
     },
     "predict": {
         "input": None,
